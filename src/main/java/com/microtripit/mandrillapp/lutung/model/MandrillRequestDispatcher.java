@@ -1,9 +1,11 @@
 /**
- * 
+ *
  */
 package com.microtripit.mandrillapp.lutung.model;
 
-import org.apache.http.HttpEntity;
+import com.microtripit.mandrillapp.lutung.logging.Logger;
+import com.microtripit.mandrillapp.lutung.logging.LoggerFactory;
+import com.microtripit.mandrillapp.lutung.model.MandrillApiError.MandrillError;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
@@ -14,12 +16,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
 
-import com.microtripit.mandrillapp.lutung.logging.Logger;
-import com.microtripit.mandrillapp.lutung.logging.LoggerFactory;
-import com.microtripit.mandrillapp.lutung.model.MandrillApiError.MandrillError;
-
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -48,8 +45,8 @@ public final class MandrillRequestDispatcher {
 	 * The value is expressed in milliseconds.
 	 * */
 	public static int CONNECTION_TIMEOUT_MILLIS = 0;
-	
-	
+
+
 	private static CloseableHttpClient httpClient;
 	private static PoolingHttpClientConnectionManager connexionManager;
 	private static RequestConfig defaultRequestConfig;
@@ -70,7 +67,7 @@ public final class MandrillRequestDispatcher {
 	public static final <T> T execute(final RequestModel<T> requestModel) throws MandrillApiError, IOException {
 
 		HttpResponse response = null;
-		String responseString = null;
+		String responseString;
 		try {
 			// use proxy?
 			final ProxyData proxyData = detectProxyServer(requestModel.getUrl());
@@ -91,17 +88,17 @@ public final class MandrillRequestDispatcher {
 			if( requestModel.validateResponseStatus(status.getStatusCode()) ) {
 				try {
 					return requestModel.handleResponse( responseString );
-					
+
 				} catch(final HandleResponseException e) {
 					throw new IOException(
-							"Failed to parse response from request '" 
+							"Failed to parse response from request '"
 							+requestModel.getUrl()+ "'", e);
-					
+
 				}
-				
+
 			} else {
 				// ==> compile mandrill error!
-				MandrillError error = null;
+				MandrillError error;
 				try {
 				    error = LutungGsonUtils.getGson()
 						.fromJson(responseString, MandrillError.class);
@@ -113,18 +110,15 @@ public final class MandrillRequestDispatcher {
 				}
 
 				throw new MandrillApiError(
-						"Unexpected http status in response: " 
-						+status.getStatusCode()+ " (" 
+						"Unexpected http status in response: "
+						+status.getStatusCode()+ " ("
 						+status.getReasonPhrase()+ ")").withError(error);
-				
+
 			}
-				
+
 		} finally {
-			try {
-				EntityUtils.consume(response.getEntity());
-			} catch (IOException e) {
-				log.error("Error consuming entity", e);
-				throw e;
+			if(null != response){
+				EntityUtils.consumeQuietly(response.getEntity());
 			}
 		}
 	}
